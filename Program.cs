@@ -8,8 +8,6 @@ namespace LabWork
     // Відео-інструкції щодо роботи з github можна переглянути 
     // за посиланням https://www.youtube.com/@ViktorZhukovskyy/videos
 
-    #region Enums
-
     /// <summary>
     /// Тип кузова автомобіля
     /// </summary>
@@ -19,8 +17,7 @@ namespace LabWork
         Coupe,      // Купе
         Hatchback,  // Хетчбек
         Wagon,      // Універсал
-        SUV,        // Кросовер
-        Crossover   // Кросовер
+        SUV         // Позашляховик/Кросовер
     }
 
     /// <summary>
@@ -50,17 +47,13 @@ namespace LabWork
         Adventure       // Пригодницька
     }
 
-    #endregion
-
-    #region Car Product
-
     /// <summary>
     /// Клас автомобіля (Product) - незмінний об'єкт після створення
     /// </summary>
     public record Car
     {
         public BodyType BodyType { get; init; }
-        public string Engine { get; init; }
+        public required string Engine { get; init; }
         public CarColor Color { get; init; }
         public TrimLevel TrimLevel { get; init; }
 
@@ -71,7 +64,7 @@ namespace LabWork
         {
             return $"=== Інформація про автомобіль ===\n" +
                    $"Тип кузова: {GetBodyTypeDisplayName(BodyType)}\n" +
-                   $"Двигун: {Engine ?? "Не вказано"}\n" +
+                   $"Двигун: {Engine}\n" +
                    $"Колір: {GetColorDisplayName(Color)}\n" +
                    $"Комплектація: {GetTrimLevelDisplayName(TrimLevel)}\n" +
                    $"================================\n";
@@ -83,8 +76,7 @@ namespace LabWork
             BodyType.Coupe => "Купе",
             BodyType.Hatchback => "Хетчбек",
             BodyType.Wagon => "Універсал",
-            BodyType.SUV => "Кросовер",
-            BodyType.Crossover => "Кросовер",
+            BodyType.SUV => "Позашляховик",
             _ => type.ToString()
         };
 
@@ -111,10 +103,6 @@ namespace LabWork
             _ => level.ToString()
         };
     }
-
-    #endregion
-
-    #region Builder Interface and Implementation
 
     /// <summary>
     /// Інтерфейс будівельника (Builder Interface)
@@ -149,7 +137,7 @@ namespace LabWork
         /// <summary>
         /// Скидає стан будівельника для створення нового автомобіля
         /// </summary>
-        void Reset();
+        ICarBuilder Reset();
     }
 
     /// <summary>
@@ -157,10 +145,10 @@ namespace LabWork
     /// </summary>
     public class CarBuilder : ICarBuilder
     {
-        private BodyType _bodyType;
-        private string _engine;
-        private CarColor _color;
-        private TrimLevel _trimLevel;
+        private BodyType? _bodyType;
+        private string? _engine;
+        private CarColor? _color;
+        private TrimLevel? _trimLevel;
 
         public ICarBuilder SetBodyType(BodyType bodyType)
         {
@@ -170,7 +158,10 @@ namespace LabWork
 
         public ICarBuilder SetEngine(string engine)
         {
-            _engine = engine ?? throw new ArgumentNullException(nameof(engine));
+            if (string.IsNullOrWhiteSpace(engine))
+                throw new ArgumentException("Двигун не може бути null або порожнім", nameof(engine));
+            
+            _engine = engine;
             return this;
         }
 
@@ -191,7 +182,7 @@ namespace LabWork
         /// </summary>
         public Car Build()
         {
-            // Валідація обов'язкових полів
+            // Додаткова перевірка (на випадок прямого доступу до полів)
             if (string.IsNullOrWhiteSpace(_engine))
             {
                 throw new InvalidOperationException("Двигун є обов'язковим параметром. Використайте SetEngine().");
@@ -199,10 +190,10 @@ namespace LabWork
 
             var car = new Car
             {
-                BodyType = _bodyType,
+                BodyType = _bodyType ?? BodyType.Sedan,        // За замовчуванням - Седан
                 Engine = _engine,
-                Color = _color,
-                TrimLevel = _trimLevel
+                Color = _color ?? CarColor.Black,              // За замовчуванням - Чорний
+                TrimLevel = _trimLevel ?? TrimLevel.Standard   // За замовчуванням - Стандарт
             };
 
             Reset(); // Автоматичне скидання після створення
@@ -212,18 +203,15 @@ namespace LabWork
         /// <summary>
         /// Скидає стан будівельника
         /// </summary>
-        public void Reset()
+        public ICarBuilder Reset()
         {
-            _bodyType = default;
+            _bodyType = null;
             _engine = null;
-            _color = default;
-            _trimLevel = default;
+            _color = null;
+            _trimLevel = null;
+            return this;
         }
     }
-
-    #endregion
-
-    #region Director
 
     /// <summary>
     /// Директор (Director) - для створення популярних конфігурацій
@@ -285,10 +273,6 @@ namespace LabWork
         }
     }
 
-    #endregion
-
-    #region Program
-
     /// <summary>
     /// Головний клас програми
     /// </summary>
@@ -342,25 +326,61 @@ namespace LabWork
             Console.WriteLine(stepCar);
 
             // Спосіб 4: Демонстрація валідації
-            Console.WriteLine("4. Демонстрація валідації (спроба створити без двигуна):\n");
+            Console.WriteLine("4. Демонстрація валідації:\n");
 
+            // 4a: Спроба створити без двигуна
             try
             {
                 var invalidBuilder = new CarBuilder();
                 invalidBuilder
                     .SetBodyType(BodyType.Sedan)
                     .SetColor(CarColor.Black)
-                    .Build(); // Викличе помилку, бо не вказано двигун
+                    .Build();
             }
             catch (InvalidOperationException ex)
             {
-                Console.WriteLine($"❌ Помилка: {ex.Message}\n");
+                Console.WriteLine($"❌ Помилка (без двигуна): {ex.Message}");
             }
+
+            // 4b: Спроба встановити порожній двигун
+            try
+            {
+                var emptyEngineBuilder = new CarBuilder();
+                emptyEngineBuilder.SetEngine("   "); // Тільки пробіли
+            }
+            catch (ArgumentException ex)
+            {
+                Console.WriteLine($"❌ Помилка (порожній двигун): {ex.Message}");
+            }
+
+            // Спосіб 5: Демонстрація Reset() та значень за замовчуванням
+            Console.WriteLine("\n5. Використання Reset() і значень за замовчуванням:\n");
+
+            var reuseBuilder = new CarBuilder();
+            reuseBuilder
+                .SetEngine("2.0L Turbo")
+                .Reset() // Скидаємо все
+                .SetEngine("3.5L V6"); // Встановлюємо тільки двигун
+            
+            var defaultCar = reuseBuilder.Build();
+            Console.WriteLine("Автомобіль зі значеннями за замовчуванням (тільки двигун вказано):");
+            Console.WriteLine(defaultCar);
+
+            // Спосіб 6: Флюїдний API з Reset
+            Console.WriteLine("6. Флюїдний API з Reset:\n");
+
+            var fluentCar = new CarBuilder()
+                .Reset()
+                .SetBodyType(BodyType.Coupe)
+                .SetEngine("Electric 400kW")
+                .SetColor(CarColor.Silver)
+                .SetTrimLevel(TrimLevel.LuxuryPlus)
+                .Build();
+
+            Console.WriteLine(fluentCar);
 
             Console.WriteLine("Натисніть будь-яку клавішу для виходу...");
             Console.ReadKey();
         }
     }
-
-    #endregion
 }
